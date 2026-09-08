@@ -121,7 +121,7 @@ def generate_market_intelligence(session_key: str) -> str:
     )
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash-lite",
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
