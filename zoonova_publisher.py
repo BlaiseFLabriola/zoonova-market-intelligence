@@ -239,10 +239,17 @@ def save_report_locally(title: str, slug: str, raw_markdown: str, html_content: 
     with open(latest_json_path, "w", encoding="utf-8") as f:
         json.dump(report_payload, f, indent=2)
 
+     # 3. Mirror latest report as repository root index.html
+    with open("index.html", "w", encoding="utf-8") as f:
+        f.write(html_content)
+
     print(f"Saved artifacts:")
     print(f" - {json_path}")
     print(f" - {html_path}")
     print(f" - {latest_json_path}")
+    print(f" - index.html (Root Landing)")
+   
+
 
 
 def notify_google_indexing_api(target_url: str):
