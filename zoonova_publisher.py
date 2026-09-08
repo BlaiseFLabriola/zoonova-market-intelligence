@@ -257,6 +257,7 @@ def build_schema_and_dom(report_markdown: str, session_key: str) -> tuple[str, s
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="PASTE_YOUR_VERIFICATION_CODE_HERE">
     <title>{title}</title>
     <script type="application/ld+json">
 {json.dumps(schema, indent=2)}
