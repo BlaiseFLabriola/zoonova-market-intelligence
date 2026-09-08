@@ -73,7 +73,7 @@ jobs:
         run: |
           git config --global user.name "Zoonova Engine Bot"
           git config --global user.email "bot@zoonova.com"
-          git add reports/
+          git add reports/ index.html
           if git diff --staged --quiet; then
             echo "No report updates to commit."
           else
