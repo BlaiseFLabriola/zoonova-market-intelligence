@@ -36,7 +36,56 @@ INDEXING_SCOPES = ["https://www.googleapis.com/auth/indexing"]
 REPORTS_DIR = "reports"
 
 CORE_TICKERS = ["SPY", "QQQ", "NVDA", "AAPL", "MSFT", "AMZN", "META", "TSLA"]
-
+TERMINAL_CSS = """
+<style>
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-surface: #111827;
+    --bg-card: #161f30;
+    --border: #1f293d;
+    --text-main: #e2e8f0;
+    --text-muted: #94a3b8;
+    --accent-cyan: #00e5ff;
+    --accent-emerald: #10b981;
+    --accent-rose: #f43f5e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 2rem 1rem;
+    display: flex;
+    justify-content: center;
+  }
+  .container {
+    max-width: 1040px;
+    width: 100%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  h1, h2, h3 { color: #ffffff; letter-spacing: -0.02em; font-weight: 600; }
+  h1 { font-size: 1.85rem; border-bottom: 2px solid var(--border); padding-bottom: 0.75rem; margin-top: 0; }
+  h2 { font-size: 1.35rem; color: var(--accent-cyan); margin-top: 2rem; margin-bottom: 0.75rem; }
+  h3 { font-size: 1.1rem; color: #cbd5e1; }
+  p, li { font-size: 0.95rem; color: #cbd5e1; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88rem; }
+  code { background: #1e293b; padding: 0.15rem 0.4rem; border-radius: 4px; color: var(--accent-cyan); }
+  table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88rem; }
+  th { background: var(--bg-card); color: var(--accent-cyan); text-align: left; padding: 10px 14px; border-bottom: 2px solid var(--border); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: #e2e8f0; }
+  tr:hover td { background: rgba(0, 229, 255, 0.03); }
+  blockquote { border-left: 3px solid var(--accent-cyan); margin: 1.5rem 0; padding: 0.75rem 1.25rem; background: rgba(0, 229, 255, 0.05); border-radius: 0 6px 6px 0; }
+  .executive-summary { border-left: 3px solid var(--accent-cyan); background: rgba(0, 229, 255, 0.05); padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+  a { color: var(--accent-cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+"""
 SESSION_CONFIGS = {
     "pre_market": {
         "title_label": "Pre-Market Opening Intelligence",
@@ -203,13 +252,24 @@ def build_schema_and_dom(report_markdown: str, session_key: str) -> tuple[str, s
         }
     }
 
-    final_html = (
-        f'<script type="application/ld+json">\n{json.dumps(schema, indent=2)}\n</script>\n\n'
-        f"{html_body}"
-    )
-
+   final_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <script type="application/ld+json">
+{json.dumps(schema, indent=2)}
+    </script>
+    {TERMINAL_CSS}
+</head>
+<body>
+    <main class="container">
+        {html_body}
+    </main>
+</body>
+</html>"""
     return title, slug, final_html, schema
-
 
 def save_report_locally(title: str, slug: str, raw_markdown: str, html_content: str, schema_dict: dict, session_key: str):
     os.makedirs(REPORTS_DIR, exist_ok=True)
