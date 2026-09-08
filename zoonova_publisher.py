@@ -252,7 +252,7 @@ def build_schema_and_dom(report_markdown: str, session_key: str) -> tuple[str, s
         }
     }
 
-final_html = f"""<!DOCTYPE html>
+    final_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
