@@ -1,0 +1,34 @@
+name: Publish Daily Zoonova Intelligence
+
+on:
+  schedule:
+    # 12:30 UTC = 8:30 AM EDT (Monday through Friday)
+    - cron: '30 12 * * 1-5'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  run-publisher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install google-genai markdown requests
+
+      - name: Execute Pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ZOONOVA_BASE_URL: "https://zoonova.com"
+          WP_API_URL: "https://zoonova.com/wp-json/wp/v2/posts"
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: |
+          python zoonova_publisher.py
