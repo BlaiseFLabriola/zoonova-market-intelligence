@@ -4,9 +4,9 @@ Zoonova AI Multi-Session Market Intelligence Publisher
 Executes 3 daily reports: 8:30 AM (Pre-Market), 2:00 PM (Midday), 5:00 PM (Post-Close).
 Features:
  - Gemini 2.5 Flash with live Google Search grounding
- - Schema generation with WP REST API meta storage
- - Google Indexing API push
- - Webhook monitoring & error alerts
+ - Schema generation with JSON-LD markup
+ - Git-backed file storage (HTML, session JSON, and latest.json)
+ - Optional Google Indexing API and webhook notifications
 """
 
 import argparse
@@ -24,18 +24,16 @@ from google.oauth2 import service_account
 from google.auth.transport.requests import Request
 
 # ---------------------------------------------------------
-# Environment & Endpoint Configuration
+# Configuration
 # ---------------------------------------------------------
 BASE_SITE_URL = os.getenv("ZOONOVA_BASE_URL", "https://zoonova.com").rstrip("/")
-WP_API_URL = os.getenv("WP_API_URL", "https://zoonova.com/wp-json/wp/v2/posts")
-WP_USER = os.getenv("WP_USER")
-WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GCP_SERVICE_ACCOUNT_KEY = os.getenv("GCP_SERVICE_ACCOUNT_KEY")
 ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL")
 
 INDEXING_ENDPOINT = "https://indexing.googleapis.com/v3/urlNotifications:publish"
 INDEXING_SCOPES = ["https://www.googleapis.com/auth/indexing"]
+REPORTS_DIR = "reports"
 
 CORE_TICKERS = ["SPY", "QQQ", "NVDA", "AAPL", "MSFT", "AMZN", "META", "TSLA"]
 
@@ -213,61 +211,63 @@ def build_schema_and_dom(report_markdown: str, session_key: str) -> tuple[str, s
     return title, slug, final_html, schema
 
 
-def publish_to_wordpress(title: str, slug: str, content: str, schema_dict: dict) -> str:
-    if not (WP_USER and WP_APP_PASSWORD):
-        raise ValueError("WP_USER or WP_APP_PASSWORD environment variables are missing.")
+def save_report_locally(title: str, slug: str, raw_markdown: str, html_content: str, schema_dict: dict, session_key: str):
+    os.makedirs(REPORTS_DIR, exist_ok=True)
 
-    payload = {
+    report_payload = {
         "title": title,
         "slug": slug,
-        "content": content,
-        "status": "publish",
-        "comment_status": "closed",
-        "ping_status": "open",
-        "meta": {
-            "_zoonova_schema": json.dumps(schema_dict)
-        }
+        "session": session_key,
+        "timestamp": datetime.now(ZoneInfo("America/New_York")).isoformat(),
+        "schema": schema_dict,
+        "markdown": raw_markdown,
+        "html": html_content
     }
 
-    response = requests.post(
-        WP_API_URL,
-        auth=(WP_USER, WP_APP_PASSWORD),
-        json=payload,
-        headers={"Content-Type": "application/json"},
-        timeout=30
-    )
-    response.raise_for_status()
-    post_data = response.json()
-    return post_data.get("link", f"{BASE_SITE_URL}/reports/{slug}")
+    # 1. Write specific session JSON & HTML
+    json_path = os.path.join(REPORTS_DIR, f"{slug}.json")
+    html_path = os.path.join(REPORTS_DIR, f"{slug}.html")
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report_payload, f, indent=2)
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    # 2. Write/update latest.json for easy frontend fetching
+    latest_json_path = os.path.join(REPORTS_DIR, "latest.json")
+    with open(latest_json_path, "w", encoding="utf-8") as f:
+        json.dump(report_payload, f, indent=2)
+
+    print(f"Saved artifacts:")
+    print(f" - {json_path}")
+    print(f" - {html_path}")
+    print(f" - {latest_json_path}")
 
 
-def notify_google_indexing_api(target_url: str) -> dict:
+def notify_google_indexing_api(target_url: str):
     raw_key = GCP_SERVICE_ACCOUNT_KEY
     if not raw_key:
-        print("Notice: GCP_SERVICE_ACCOUNT_KEY missing. Skipping Indexing API call.")
-        return {}
+        return
 
-    key_data = json.loads(raw_key) if not os.path.exists(raw_key) else json.load(open(raw_key))
-    credentials = service_account.Credentials.from_service_account_info(
-        key_data,
-        scopes=INDEXING_SCOPES
-    )
-    credentials.refresh(Request())
+    try:
+        key_data = json.loads(raw_key) if not os.path.exists(raw_key) else json.load(open(raw_key))
+        credentials = service_account.Credentials.from_service_account_info(
+            key_data,
+            scopes=INDEXING_SCOPES
+        )
+        credentials.refresh(Request())
 
-    payload = {
-        "url": target_url,
-        "type": "URL_UPDATED"
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {credentials.token}"
-    }
-
-    response = requests.post(INDEXING_ENDPOINT, headers=headers, json=payload, timeout=15)
-    response.raise_for_status()
-    data = response.json()
-    print(f"Indexing API: Dispatched {target_url} to Googlebot successfully.")
-    return data
+        payload = {"url": target_url, "type": "URL_UPDATED"}
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {credentials.token}"
+        }
+        res = requests.post(INDEXING_ENDPOINT, headers=headers, json=payload, timeout=15)
+        res.raise_for_status()
+        print(f"Indexing API: Dispatched {target_url} successfully.")
+    except Exception as e:
+        print(f"Indexing API notice: {e}", file=sys.stderr)
 
 
 def main():
@@ -276,7 +276,7 @@ def main():
         "--session",
         choices=["auto", "pre_market", "midday", "post_close"],
         default="auto",
-        help="Specify the market session or let the script auto-detect by Eastern Time."
+        help="Market session key."
     )
     args = parser.parse_args()
 
@@ -286,20 +286,19 @@ def main():
 
         print(f"=== Running Zoonova Pipeline: {session_label} ===")
 
-        print("1/4 Fetching Grounded Gemini Flash Intelligence...")
+        print("1/3 Generating Grounded Gemini Flash Analysis...")
         report_md = generate_market_intelligence(session_key)
 
-        print("2/4 Building Schema and DOM structure...")
+        print("2/3 Building Schema & Structured Output...")
         title, slug, final_html, schema_dict = build_schema_and_dom(report_md, session_key)
 
-        print("3/4 Publishing to WordPress with Post-Meta payload...")
-        post_url = publish_to_wordpress(title, slug, final_html, schema_dict)
-        print(f"    Published: {post_url}")
+        print("3/3 Writing Report Artifacts...")
+        save_report_locally(title, slug, report_md, final_html, schema_dict, session_key)
 
-        print("4/4 Dispatched to Google Indexing API...")
-        notify_google_indexing_api(post_url)
+        public_report_url = f"{BASE_SITE_URL}/reports/{slug}"
+        notify_google_indexing_api(public_report_url)
+        send_alert(f"Generated **{title}**.\nLocal artifact: `reports/{slug}.json`")
 
-        send_alert(f"Published **{title}** successfully.\nURL: {post_url}")
         print("Pipeline execution complete.\n")
 
     except Exception as exc:
