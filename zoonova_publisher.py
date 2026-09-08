@@ -1,72 +1,313 @@
-name: Zoonova 3x Daily Market Intelligence
+#!/usr/bin/env python3
+"""
+Zoonova AI Multi-Session Market Intelligence Publisher
+Executes 3 daily reports: 8:30 AM (Pre-Market), 2:00 PM (Midday), 5:00 PM (Post-Close).
+Features:
+ - Gemini 2.5 Flash with live Google Search grounding
+ - Schema generation with WP REST API meta storage
+ - Google Indexing API push
+ - Webhook monitoring & error alerts
+"""
 
-on:
-  schedule:
-    # Runs at the bottom of the hour (e.g., 8:30 AM check)
-    - cron: '30 12,13 * * 1-5'
-    # Runs at the top of the hour (e.g., 2:00 PM and 5:00 PM check)
-    - cron: '0 18,19,21,22 * * 1-5'
-  workflow_dispatch:
-    inputs:
-      session_override:
-        description: 'Session Override'
-        required: true
-        default: 'auto'
-        type: choice
-        options:
-          - auto
-          - pre_market
-          - midday
-          - post_close
+import argparse
+import json
+import os
+import re
+import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import markdown
+import requests
+from google import genai
+from google.genai import types
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request
 
-jobs:
-  run-publisher:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+# ---------------------------------------------------------
+# Environment & Endpoint Configuration
+# ---------------------------------------------------------
+BASE_SITE_URL = os.getenv("ZOONOVA_BASE_URL", "https://zoonova.com").rstrip("/")
+WP_API_URL = os.getenv("WP_API_URL", "https://zoonova.com/wp-json/wp/v2/posts")
+WP_USER = os.getenv("WP_USER")
+WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GCP_SERVICE_ACCOUNT_KEY = os.getenv("GCP_SERVICE_ACCOUNT_KEY")
+ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL")
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+INDEXING_ENDPOINT = "https://indexing.googleapis.com/v3/urlNotifications:publish"
+INDEXING_SCOPES = ["https://www.googleapis.com/auth/indexing"]
 
-      - name: Install Dependencies
-        run: |
-          pip install google-genai google-auth markdown requests
+CORE_TICKERS = ["SPY", "QQQ", "NVDA", "AAPL", "MSFT", "AMZN", "META", "TSLA"]
 
-      - name: Check Time Window and Run Pipeline
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          ZOONOVA_BASE_URL: "https://zoonova.com"
-          WP_API_URL: "https://zoonova.com/wp-json/wp/v2/posts"
-          WP_USER: ${{ secrets.WP_USER }}
-          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
-          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
-        run: |
-          # Python check to ensure DST accuracy
-          python - << 'EOF'
-          import os, sys
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
+SESSION_CONFIGS = {
+    "pre_market": {
+        "title_label": "Pre-Market Opening Intelligence",
+        "slug_suffix": "pre-market",
+        "description": "Pre-market algorithmic equity intelligence analyzing overnight futures, macro economic releases, and opening Quad-Ensemble momentum.",
+        "focus_prompt": (
+            "Focus on: Overnight global equity market flows (Europe & Asia-Pacific), S&P 500 and Nasdaq-100 futures gaps, "
+            "10-Year Treasury yield trajectory, pre-market macroeconomic data prints (CPI, PPI, Jobless claims), "
+            "and pre-market earnings surprises. Establish opening Quad-Ensemble directional bias."
+        )
+    },
+    "midday": {
+        "title_label": "Midday Momentum & Liquidity Report",
+        "slug_suffix": "midday",
+        "description": "Midday quantitative review tracking intraday volume profiles, institutional order flow, and BIRCH volatility cluster migrations.",
+        "focus_prompt": (
+            "Focus on: Regular trading session price discovery, intraday NYSE/Nasdaq volume breadth, sector rotation dynamics, "
+            "midday Federal Reserve/FOMC commentary or rate expectations, and shifts in BIRCH cluster volatility regimes. "
+            "Examine whether morning breakouts are confirming or showing mean-reversion exhaustion."
+        )
+    },
+    "post_close": {
+        "title_label": "Post-Close Settlement & After-Hours Analysis",
+        "slug_suffix": "post-close",
+        "description": "Daily post-market quantitative breakdown covering closing settlements, sector attribution, model signal verification, and after-hours earnings.",
+        "focus_prompt": (
+            "Focus on: Closing bell cash index settlements, daily sector performance attribution, institutional market-on-close (MOC) imbalance data, "
+            "after-hours mega-cap earnings reports, and end-of-day model verification comparing Quad-Ensemble morning predictions against actual performance."
+        )
+    }
+}
 
-          override = "${{ github.event.inputs.session_override }}"
-          if override and override != "auto":
-              os.system(f"python zoonova_publisher.py --session {override}")
-              sys.exit(0)
 
-          ny_now = datetime.now(ZoneInfo("America/New_York"))
-          hour, minute = ny_now.hour, ny_now.minute
+def send_alert(message: str, is_error: bool = False):
+    if not ALERT_WEBHOOK_URL:
+        return
+    prefix = "🚨 **Zoonova Pipeline Error**:" if is_error else "✅ **Zoonova Pipeline Notice**:"
+    payload = {"content": f"{prefix} {message}"} if "discord.com" in ALERT_WEBHOOK_URL else {"text": f"{prefix} {message}"}
+    try:
+        requests.post(ALERT_WEBHOOK_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Failed to deliver webhook alert: {e}", file=sys.stderr)
 
-          # Target windows: 8:30 AM, 2:00 PM, 5:00 PM (Eastern Time)
-          if hour == 8 and 25 <= minute <= 45:
-              os.system("python zoonova_publisher.py --session pre_market")
-          elif hour == 14 and minute <= 15:
-              os.system("python zoonova_publisher.py --session midday")
-          elif hour == 17 and minute <= 15:
-              os.system("python zoonova_publisher.py --session post_close")
-          else:
-              print(f"Skipping run: Current NY time is {ny_now.strftime('%H:%M')}. Not within a trigger window.")
-          EOF
+
+def determine_market_session() -> str:
+    ny_now = datetime.now(ZoneInfo("America/New_York"))
+    hour = ny_now.hour
+    if hour < 11:
+        return "pre_market"
+    elif 11 <= hour < 16:
+        return "midday"
+    else:
+        return "post_close"
+
+
+def generate_market_intelligence(session_key: str) -> str:
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY environment variable is not configured.")
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    config = SESSION_CONFIGS[session_key]
+    ny_now = datetime.now(ZoneInfo("America/New_York"))
+    today_str = ny_now.strftime("%A, %B %d, %Y")
+
+    system_instruction = (
+        "You are the senior quantitative architect and intelligence engine for Zoonova AI. "
+        "Produce an authoritative, highly detailed market intelligence analysis for institutional and quantitative investors. "
+        "Strictly adhere to the following sections: "
+        "1. Executive Summary: Macro regime, market sentiment posture, and primary directional bias. "
+        "2. Quad-Ensemble Model Dynamics: Model consensus across Random Forest, Gradient Boosting, Deep Neural Networks, and Support Vector Regression. "
+        "3. VADER Sentiment & News Velocity: Natural language sentiment indices scored on a -1.0 to +1.0 scale with key driver headlines. "
+        "4. BIRCH Clustering & Volatility Regimes: Microstructure cluster groupings, dispersion metrics, and outlier transitions. "
+        "5. Quantitative Scorecard Matrix: A strict Markdown table with columns: "
+        "   | Ticker | Quad-Ensemble Score (0-100) | VADER Score (-1 to +1) | BIRCH Cluster | Model Signal | Target Bias | "
+        "Zero generic commentary. Every metric must be specific, concrete, and quantitative."
+    )
+
+    user_prompt = (
+        f"Generate the comprehensive Zoonova AI Market Intelligence Analysis: {config['title_label']} for {today_str}. "
+        f"{config['focus_prompt']} "
+        "Ground all data in current global equity prices, yields, sector indices, and institutional news flow."
+    )
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=0.2,
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        ),
+    )
+    return response.text
+
+
+def build_schema_and_dom(report_markdown: str, session_key: str) -> tuple[str, str, str, dict]:
+    config = SESSION_CONFIGS[session_key]
+    ny_now = datetime.now(ZoneInfo("America/New_York"))
+    date_str = ny_now.strftime("%Y-%m-%d")
+    display_date = ny_now.strftime("%B %d, %Y")
+    iso_timestamp = ny_now.isoformat()
+
+    title = f"Zoonova AI {config['title_label']} - {display_date}"
+    slug = f"zoonova-market-intelligence-{date_str}-{config['slug_suffix']}"
+
+    first_para = re.search(r"^(?:#+ .*\n+)?([^\n#]+)", report_markdown.strip())
+    summary = first_para.group(1).strip() if first_para else config["description"]
+
+    html_body = markdown.markdown(
+        report_markdown,
+        extensions=["tables", "fenced_code", "sane_lists"]
+    )
+
+    html_body = re.sub(r"(<table>)", r'<div class="market-metrics-table">\1', html_body)
+    html_body = re.sub(r"(</table>)", r"\1</div>", html_body)
+    html_body = (
+        f'<div class="executive-summary">\n'
+        f'<p><strong>Session Quantitative Briefing:</strong> {summary}</p>\n'
+        f'</div>\n' + html_body
+    )
+
+    about_entities = [
+        {"@type": "FinancialProduct", "name": "S&P 500", "sameAs": "https://en.wikipedia.org/wiki/S%26P_500"},
+        {"@type": "FinancialProduct", "name": "Nasdaq-100", "sameAs": "https://en.wikipedia.org/wiki/Nasdaq-100"},
+        {"@type": "Thing", "name": "Quantitative Finance", "sameAs": "https://en.wikipedia.org/wiki/Mathematical_finance"}
+    ]
+    for ticker in CORE_TICKERS:
+        about_entities.append({
+            "@type": "FinancialProduct",
+            "name": ticker,
+            "sameAs": f"https://www.google.com/finance/quote/{ticker}:NASDAQ"
+        })
+
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "AnalysisNewsArticle",
+        "mainEntityOfPage": {
+            "@type": "WebPage",
+            "@id": f"{BASE_SITE_URL}/reports/{slug}"
+        },
+        "headline": title,
+        "description": summary[:250],
+        "datePublished": iso_timestamp,
+        "dateModified": iso_timestamp,
+        "inLanguage": "en-US",
+        "author": {
+            "@type": "Organization",
+            "name": "Zoonova AI Quantitative Desk",
+            "url": BASE_SITE_URL
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "Zoonova AI",
+            "url": BASE_SITE_URL,
+            "logo": {
+                "@type": "ImageObject",
+                "url": f"{BASE_SITE_URL}/assets/zoonova-logo.png"
+            }
+        },
+        "about": about_entities,
+        "speakable": {
+            "@type": "SpeakableSpecification",
+            "cssSelector": [".executive-summary", ".market-metrics-table"]
+        }
+    }
+
+    final_html = (
+        f'<script type="application/ld+json">\n{json.dumps(schema, indent=2)}\n</script>\n\n'
+        f"{html_body}"
+    )
+
+    return title, slug, final_html, schema
+
+
+def publish_to_wordpress(title: str, slug: str, content: str, schema_dict: dict) -> str:
+    if not (WP_USER and WP_APP_PASSWORD):
+        raise ValueError("WP_USER or WP_APP_PASSWORD environment variables are missing.")
+
+    payload = {
+        "title": title,
+        "slug": slug,
+        "content": content,
+        "status": "publish",
+        "comment_status": "closed",
+        "ping_status": "open",
+        "meta": {
+            "_zoonova_schema": json.dumps(schema_dict)
+        }
+    }
+
+    response = requests.post(
+        WP_API_URL,
+        auth=(WP_USER, WP_APP_PASSWORD),
+        json=payload,
+        headers={"Content-Type": "application/json"},
+        timeout=30
+    )
+    response.raise_for_status()
+    post_data = response.json()
+    return post_data.get("link", f"{BASE_SITE_URL}/reports/{slug}")
+
+
+def notify_google_indexing_api(target_url: str) -> dict:
+    raw_key = GCP_SERVICE_ACCOUNT_KEY
+    if not raw_key:
+        print("Notice: GCP_SERVICE_ACCOUNT_KEY missing. Skipping Indexing API call.")
+        return {}
+
+    key_data = json.loads(raw_key) if not os.path.exists(raw_key) else json.load(open(raw_key))
+    credentials = service_account.Credentials.from_service_account_info(
+        key_data,
+        scopes=INDEXING_SCOPES
+    )
+    credentials.refresh(Request())
+
+    payload = {
+        "url": target_url,
+        "type": "URL_UPDATED"
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {credentials.token}"
+    }
+
+    response = requests.post(INDEXING_ENDPOINT, headers=headers, json=payload, timeout=15)
+    response.raise_for_status()
+    data = response.json()
+    print(f"Indexing API: Dispatched {target_url} to Googlebot successfully.")
+    return data
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Zoonova AI Automated Intelligence Publisher")
+    parser.add_argument(
+        "--session",
+        choices=["auto", "pre_market", "midday", "post_close"],
+        default="auto",
+        help="Specify the market session or let the script auto-detect by Eastern Time."
+    )
+    args = parser.parse_args()
+
+    try:
+        session_key = determine_market_session() if args.session == "auto" else args.session
+        session_label = SESSION_CONFIGS[session_key]["title_label"]
+
+        print(f"=== Running Zoonova Pipeline: {session_label} ===")
+
+        print("1/4 Fetching Grounded Gemini Flash Intelligence...")
+        report_md = generate_market_intelligence(session_key)
+
+        print("2/4 Building Schema and DOM structure...")
+        title, slug, final_html, schema_dict = build_schema_and_dom(report_md, session_key)
+
+        print("3/4 Publishing to WordPress with Post-Meta payload...")
+        post_url = publish_to_wordpress(title, slug, final_html, schema_dict)
+        print(f"    Published: {post_url}")
+
+        print("4/4 Dispatched to Google Indexing API...")
+        notify_google_indexing_api(post_url)
+
+        send_alert(f"Published **{title}** successfully.\nURL: {post_url}")
+        print("Pipeline execution complete.\n")
+
+    except Exception as exc:
+        err_msg = f"Session '{args.session}' failed: {str(exc)}"
+        print(f"ERROR: {err_msg}", file=sys.stderr)
+        send_alert(err_msg, is_error=True)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
