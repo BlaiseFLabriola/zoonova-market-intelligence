@@ -77,6 +77,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No report updates to commit."
           else
-            git commit -m "Auto-publish market intelligence [skip ci]"
+            git commit -m "Auto-publish market intelligence" 
             git push
           fi
