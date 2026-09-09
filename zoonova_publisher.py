@@ -357,73 +357,68 @@ def save_report_locally(title: str, slug: str, raw_markdown: str, html_content: 
     print(f" - {html_path}")
     print(f" - {latest_json_path}")
     print(f" - index.html (Root Landing)")
-   
-
-
-
-def notify_google_indexing_api(target_url: str):
+ def notify_google_indexing_api(target_url: str):
     raw_key = GCP_SERVICE_ACCOUNT_KEY
     if not raw_key:
         return
-
     try:
         key_data = json.loads(raw_key) if not os.path.exists(raw_key) else json.load(open(raw_key))
         credentials = service_account.Credentials.from_service_account_info(
-            key_data,
-            scopes=INDEXING_SCOPES
+            key_data, scopes=INDEXING_SCOPES
         )
         credentials.refresh(Request())
-
         payload = {"url": target_url, "type": "URL_UPDATED"}
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {credentials.token}"
+            "Authorization": f"Bearer {credentials.token}",
         }
         res = requests.post(INDEXING_ENDPOINT, headers=headers, json=payload, timeout=15)
         res.raise_for_status()
         print(f"Indexing API: Dispatched {target_url} successfully.")
-      except Exception as e:
+    except Exception as e:
         print(f"Indexing API notice: {e}", file=sys.stderr)
 
- def publish_to_linkedin(title: str, summary: str, report_url: str):
-  if not LINKEDIN_ACCESS_TOKEN or not LINKEDIN_PERSON_URN:
-    print("LinkedIn: Missing credentials. Skipping share.")
-    return
+def publish_to_linkedin(title: str, summary: str, report_url: str):
+    if not LINKEDIN_ACCESS_TOKEN or not LINKEDIN_PERSON_URN:
+        print("LinkedIn: Missing credentials. Skipping share.")
+        return
 
-  api_url = "https://api.linkedin.com/v2/ugcPosts"
-  headers = {
-    "Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}",
-    "X-Restli-Protocol-Version": "2.0.0",
-    "Content-Type": "application/json",
-  }
-  payload = {
-    "author": LINKEDIN_PERSON_URN,
-    "lifecycleState": "PUBLISHED",
-    "specificContent": {
-      "com.linkedin.ugc.ShareContent": {
-        "shareCommentary": {
-          "text": f"{title}\n\n{summary}\n\nFull analysis: {report_url}"
+    api_url = "https://api.linkedin.com/v2/ugcPosts"
+    headers = {
+        "Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}",
+        "X-Restli-Protocol-Version": "2.0.0",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "author": LINKEDIN_PERSON_URN,
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {
+                    "text": f"{title}\n\n{summary}\n\nFull analysis: {report_url}"
+                },
+                "shareMediaCategory": "ARTICLE",
+                "media": [
+                    {
+                        "status": "READY",
+                        "originalUrl": report_url,
+                        "title": {"text": title},
+                        "description": {"text": summary},
+                    }
+                ],
+            }
         },
-        "shareMediaCategory": "ARTICLE",
-        "media": [
-          {
-            "status": "READY",
-            "originalUrl": report_url,
-            "title": {"text": title},
-            "description": {"text": summary},
-          }
-        ],
-      }
-    },
-    "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
-  }
+        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+    }
 
-  try:
-    res = requests.post(api_url, headers=headers, json=payload, timeout=15)
-    res.raise_for_status()
-    print("LinkedIn: Successfully published update.")
-  except Exception as exc:
-    print(f"LinkedIn error: {exc}")    
+    try:
+        res = requests.post(api_url, headers=headers, json=payload, timeout=15)
+        res.raise_for_status()
+        print("LinkedIn: Successfully published update.")
+    except Exception as exc:
+        print(f"LinkedIn error: {exc}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Zoonova AI Automated Intelligence Publisher")
     parser.add_argument(
@@ -461,5 +456,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__"
     main()
