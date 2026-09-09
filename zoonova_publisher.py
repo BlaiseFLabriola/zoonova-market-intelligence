@@ -149,8 +149,8 @@ def generate_market_intelligence(session_key: str) -> str:
     config = SESSION_CONFIGS[session_key]
     ny_now = datetime.now(ZoneInfo("America/New_York"))
     today_str = ny_now.strftime("%A, %B %d, %Y")
-
-  system_instruction = (
+ 
+    system_instruction = (
         "You are the Senior Quantitative Architect and Intelligence Engine for Zoonova AI. "
         "Produce an exhaustive, highly detailed institutional-grade market intelligence analysis for hedge fund managers and quantitative desks. "
         "Do NOT provide brief summaries or high-level outlines. Write thorough, multi-paragraph technical explanations for every model and regime. "
