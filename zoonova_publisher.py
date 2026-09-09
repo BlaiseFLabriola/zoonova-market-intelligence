@@ -151,23 +151,23 @@ def generate_market_intelligence(session_key: str) -> str:
     today_str = ny_now.strftime("%A, %B %d, %Y")
  
     system_instruction = (
-        "You are the Senior Quantitative Architect and Intelligence Engine for Zoonova AI. "
-        "Produce an exhaustive, highly detailed institutional-grade market intelligence analysis for hedge fund managers and quantitative desks. "
-        "Do NOT provide brief summaries or high-level outlines. Write thorough, multi-paragraph technical explanations for every model and regime. "
-        "Strictly adhere to the following sections:\n"
-        "1. Executive Summary: Macro Regime, Sentiment Posture, & Directional Bias (2-3 detailed paragraphs covering yields, energy shocks, central bank probabilities, institutional flow, and gap risk).\n"
-        "2. Quad-Ensemble Model Dynamics: Comprehensive technical breakdowns for Random Forest (tree splits, node purity, feature importances), Gradient Boosting (residual error weighting, support tests), Deep Neural Networks (latent layer representations, yield-vs-multiple feedback loops), and Support Vector Regression (hyperplane margins, rate sensitivity).\n"
-        "3. VADER Sentiment & News Velocity: Natural language sentiment indices scored on a -1.0 to +1.0 scale. Include at least 4-5 major market-moving headlines with individual sentiment scores and exact price transmission channels.\n"
-        "4. BIRCH Clustering & Volatility Regimes: Detailed microstructure analysis covering Cluster 1 (Momentum/Outliers), Cluster 2 (High-Beta Core Compression), and Cluster 3 (Distressed/Rate-Sensitive Nodes), including implied volatility skew and dispersion.\n"
-        "5. Quantitative Scorecard Matrix: A strict Markdown table with columns: | Ticker | Quad-Ensemble Score (0-100) | VADER Score (-1 to +1) | BIRCH Cluster | Model Signal | Target Bias | covering SPY, QQQ, IWM, US10Y, XLE, and leading market equities.\n"
-        "Zero generic commentary. Every metric, price level, and model evaluation must be explicit, concrete, and quantitative."
-    )
+    "You are the Senior Quantitative Architect and Intelligence Engine for Zoonova AI. "
+    "Produce an exhaustive, highly detailed institutional-grade market intelligence analysis for hedge fund managers and quantitative desks. "
+    "Do NOT provide brief summaries or high-level outlines. Write thorough, multi-paragraph technical explanations for every model and regime. "
+    "Strictly adhere to the following sections:\n"
+    "1. Executive Summary: Macro Regime, Sentiment Posture, & Directional Bias (2-3 detailed paragraphs covering yields, energy shocks, central bank probabilities, institutional flow, and gap risk).\n"
+    "2. Quad-Ensemble Model Dynamics: Comprehensive technical breakdowns across the four core ensemble models: Temporal Fusion Transformer (TFT) (multi-horizon forecasting, temporal attention weights), CatBoost (categorical splits, symmetric decision trees), Random Forest (RF) (tree splits, node purity, feature importances), and XGBoost (XGB) (gradient boosting, loss optimization, resistance/support projections).\n"
+    "3. VADER Sentiment Analysis & News Velocity: Natural language sentiment scoring on a -1.0 to +1.0 scale tracking institutional news flows and wire velocity. Include at least 4-5 major market-moving headlines with individual sentiment scores and direct asset price transmission channels.\n"
+    "4. BIRCH Pattern Recognition & Volatility Regimes: Unsupervised machine learning via BIRCH for structural pattern recognition and market microstructure regime detection. Detail Cluster 1 (Momentum Outliers), Cluster 2 (Core Compression), and Cluster 3 (Distressed/Rate-Sensitive Nodes).\n"
+    "5. Quantitative Scorecard Matrix: A strict Markdown table with columns: | Ticker | Quad-Ensemble Score (0-100) | VADER Score (-1 to +1) | BIRCH Cluster | Model Signal | Target Bias | covering SPY, QQQ, IWM, US10Y, XLE, and leading market equities.\n"
+    "Zero generic commentary. Every metric, price level, and model evaluation must be explicit, concrete, and quantitative."
+  )
 
-    user_prompt = (
-        f"Generate the comprehensive Zoonova AI Market Intelligence Analysis: {config['title_label']} for {today_str}. "
-        f"{config['focus_prompt']} "
-        "Ground all data in current global equity prices, yields, sector indices, and institutional news flow."
-    )
+  user_prompt = (
+    f"Generate the comprehensive Zoonova AI Market Intelligence Analysis: {config['title_label']} for {today_str}. "
+    f"{config['focus_prompt']} "
+    "Ground all data in current global equity prices, yields, sector indices, and institutional news flow."
+  )
 
     response = client.models.generate_content(
         model="gemini-3.5-flash-lite",
