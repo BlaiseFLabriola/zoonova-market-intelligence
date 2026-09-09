@@ -143,15 +143,15 @@ def determine_market_session() -> str:
 
 
 def generate_market_intelligence(session_key: str) -> str:
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY environment variable is not configured.")
+  if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is not configured.")
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    config = SESSION_CONFIGS[session_key]
-    ny_now = datetime.now(ZoneInfo("America/New_York"))
-    today_str = ny_now.strftime("%A, %B %d, %Y")
- 
-    system_instruction = (
+  client = genai.Client(api_key=GEMINI_API_KEY)
+  config = SESSION_CONFIGS[session_key]
+  ny_now = datetime.now(ZoneInfo("America/New_York"))
+  today_str = ny_now.strftime("%A, %B %d, %Y")
+
+  system_instruction = (
     "You are the Senior Quantitative Architect and Intelligence Engine for Zoonova AI. "
     "Produce the official Zoonova AI Market Intelligence Analysis matching the exact format of the Zoonova AI Command Center. "
     "Do NOT use generic summaries. Use the exact Markdown headings, tables, and sections specified below.\n\n"
@@ -159,7 +159,8 @@ def generate_market_intelligence(session_key: str) -> str:
     "1. Every Markdown table MUST include a header row, a delimiter row (e.g., |:---|:---|), and every single data row on its own separate line.\n"
     "2. NEVER concatenate rows together or output double pipes ('||'). Every row MUST begin with '|' and end with '|' followed immediately by a newline.\n\n"
     "#### 1. QUANTITATIVE MODEL OVERVIEW & SIGNAL METRICS\n"
-    "Detail the Quad-Ensemble ML predictive arrays (time-series regressors, binary classifiers for alpha probability, NLP sentiment transformers, and macro-breadth regime models). "
+    "Detail the Quad-Ensemble ML architecture: Temporal Fusion Transformer (TFT) for multi-horizon forecasting, CatBoost for categorical splits, Random Forest (RF) for node purity and baseline stability, and XGBoost (XGB) for gradient-boosted loss optimization. "
+    "Detail BIRCH unsupervised clustering for microstructure volatility regimes, and VADER for news sentiment velocity. "
     "Discuss regression residuals, R-squared values for large-cap ETFs (SPY, QQQ), implied 12-month baseline projections (+10% to +14%), localized NLP sentiment volatility, and selective alpha opportunities.\n\n"
     "#### 2. SENTIMENT INSIGHTS -- TOP 5 HIGH & LOW\n"
     "Top 5 High Sentiment Stocks\n"
@@ -211,22 +212,25 @@ def generate_market_intelligence(session_key: str) -> str:
     "|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|\n\n"
     "End the report with: '*- For informational purposes only. Not investment advice.*'"
   )
-    user_prompt = (
+
+  user_prompt = (
     f"Generate the comprehensive Zoonova AI Market Intelligence Analysis: {config['title_label']} for {today_str}. "
     f"{config['focus_prompt']} "
     "Ground all data in current global equity prices, yields, sector indices, and institutional news flow."
   )
-    response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.2,
-            max_output_tokens=8192,
-            tools=[types.Tool(google_search=types.GoogleSearch())]
-        ),
-    )
-    return response.text
+
+  response = client.models.generate_content(
+    model="gemini-3.5-flash-lite",
+    contents=user_prompt,
+    config=types.GenerateContentConfig(
+      system_instruction=system_instruction,
+      temperature=0.2,
+      max_output_tokens=8192,
+      tools=[types.Tool(google_search=types.GoogleSearch())],
+    ),
+  )
+
+  return response.text
 
 
 def build_schema_and_dom(report_markdown: str, session_key: str) -> tuple[str, str, str, dict]:
