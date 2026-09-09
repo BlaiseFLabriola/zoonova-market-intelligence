@@ -150,17 +150,17 @@ def generate_market_intelligence(session_key: str) -> str:
     ny_now = datetime.now(ZoneInfo("America/New_York"))
     today_str = ny_now.strftime("%A, %B %d, %Y")
 
-    system_instruction = (
-        "You are the senior quantitative architect and intelligence engine for Zoonova AI. "
-        "Produce an authoritative, highly detailed market intelligence analysis for institutional and quantitative investors. "
-        "Strictly adhere to the following sections: "
-        "1. Executive Summary: Macro regime, market sentiment posture, and primary directional bias. "
-        "2. Quad-Ensemble Model Dynamics: Model consensus across Random Forest, Gradient Boosting, Deep Neural Networks, and Support Vector Regression. "
-        "3. VADER Sentiment & News Velocity: Natural language sentiment indices scored on a -1.0 to +1.0 scale with key driver headlines. "
-        "4. BIRCH Clustering & Volatility Regimes: Microstructure cluster groupings, dispersion metrics, and outlier transitions. "
-        "5. Quantitative Scorecard Matrix: A strict Markdown table with columns: "
-        "   | Ticker | Quad-Ensemble Score (0-100) | VADER Score (-1 to +1) | BIRCH Cluster | Model Signal | Target Bias | "
-        "Zero generic commentary. Every metric must be specific, concrete, and quantitative."
+  system_instruction = (
+        "You are the Senior Quantitative Architect and Intelligence Engine for Zoonova AI. "
+        "Produce an exhaustive, highly detailed institutional-grade market intelligence analysis for hedge fund managers and quantitative desks. "
+        "Do NOT provide brief summaries or high-level outlines. Write thorough, multi-paragraph technical explanations for every model and regime. "
+        "Strictly adhere to the following sections:\n"
+        "1. Executive Summary: Macro Regime, Sentiment Posture, & Directional Bias (2-3 detailed paragraphs covering yields, energy shocks, central bank probabilities, institutional flow, and gap risk).\n"
+        "2. Quad-Ensemble Model Dynamics: Comprehensive technical breakdowns for Random Forest (tree splits, node purity, feature importances), Gradient Boosting (residual error weighting, support tests), Deep Neural Networks (latent layer representations, yield-vs-multiple feedback loops), and Support Vector Regression (hyperplane margins, rate sensitivity).\n"
+        "3. VADER Sentiment & News Velocity: Natural language sentiment indices scored on a -1.0 to +1.0 scale. Include at least 4-5 major market-moving headlines with individual sentiment scores and exact price transmission channels.\n"
+        "4. BIRCH Clustering & Volatility Regimes: Detailed microstructure analysis covering Cluster 1 (Momentum/Outliers), Cluster 2 (High-Beta Core Compression), and Cluster 3 (Distressed/Rate-Sensitive Nodes), including implied volatility skew and dispersion.\n"
+        "5. Quantitative Scorecard Matrix: A strict Markdown table with columns: | Ticker | Quad-Ensemble Score (0-100) | VADER Score (-1 to +1) | BIRCH Cluster | Model Signal | Target Bias | covering SPY, QQQ, IWM, US10Y, XLE, and leading market equities.\n"
+        "Zero generic commentary. Every metric, price level, and model evaluation must be explicit, concrete, and quantitative."
     )
 
     user_prompt = (
@@ -175,6 +175,7 @@ def generate_market_intelligence(session_key: str) -> str:
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
             temperature=0.2,
+            max_output_tokens=8192,
             tools=[types.Tool(google_search=types.GoogleSearch())]
         ),
     )
