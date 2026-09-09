@@ -357,7 +357,8 @@ def save_report_locally(title: str, slug: str, raw_markdown: str, html_content: 
     print(f" - {html_path}")
     print(f" - {latest_json_path}")
     print(f" - index.html (Root Landing)")
- def notify_google_indexing_api(target_url: str):
+
+def notify_google_indexing_api(target_url: str):
     raw_key = GCP_SERVICE_ACCOUNT_KEY
     if not raw_key:
         return
