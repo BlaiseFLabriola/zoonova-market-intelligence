@@ -2,8 +2,10 @@ name: Zoonova 3x Daily Market Intelligence
 
 on:
   schedule:
-    - cron: '30 12,13 * * 1-5'
-    - cron: '0 18,19,21,22 * * 1-5'
+    # 8:35 AM EDT (12:35 UTC)
+    - cron: '35 12 * * 1-5'
+    # 2:05 PM EDT (18:05 UTC) and 5:05 PM EDT (21:05 UTC)
+    - cron: '5 18,21 * * 1-5'
   workflow_dispatch:
     inputs:
       session_override:
@@ -56,19 +58,15 @@ jobs:
           ny_now = datetime.now(ZoneInfo("America/New_York"))
           hour, minute = ny_now.hour, ny_now.minute
 
-          if hour == 8 and 25 <= minute <= 45:
+          if hour < 12:
               ret = os.system("python zoonova_publisher.py --session pre_market")
-          elif hour == 14 and minute <= 15:
+          elif 12 <= hour < 16:
               ret = os.system("python zoonova_publisher.py --session midday")
-          elif hour == 17 and minute <= 15:
-              ret = os.system("python zoonova_publisher.py --session post_close")
           else:
-              print(f"Skipping run: Current NY time is {ny_now.strftime('%H:%M')}. Not within a trigger window.")
-              sys.exit(0)
+              ret = os.system("python zoonova_publisher.py --session post_close")
 
           sys.exit(ret >> 8)
           EOF
-
       - name: Commit and Push Generated Reports
         run: |
           git config --global user.name "Zoonova Engine Bot"
