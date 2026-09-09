@@ -30,7 +30,8 @@ BASE_SITE_URL = os.getenv("ZOONOVA_BASE_URL", "https://zoonova.com").rstrip("/")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GCP_SERVICE_ACCOUNT_KEY = os.getenv("GCP_SERVICE_ACCOUNT_KEY")
 ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL")
-
+LINKEDIN_ACCESS_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
+LINKEDIN_PERSON_URN = os.getenv("LINKEDIN_PERSON_URN")
 INDEXING_ENDPOINT = "https://indexing.googleapis.com/v3/urlNotifications:publish"
 INDEXING_SCOPES = ["https://www.googleapis.com/auth/indexing"]
 REPORTS_DIR = "reports"
@@ -384,9 +385,49 @@ def notify_google_indexing_api(target_url: str):
     except Exception as e:
         print(f"Indexing API notice: {e}", file=sys.stderr)
 
+    def publish_to_linkedin(title: str, summary: str, report_url: str):
+    if not LINKEDIN_ACCESS_TOKEN or not LINKEDIN_PERSON_URN:
+        print("LinkedIn: Missing credentials. Skipping share.")
+        return
+
+    api_url = "https://api.linkedin.com/v2/ugcPosts"
+    headers = {
+        "Authorization": f"Bearer {LINKEDIN_ACCESS_TOKEN}",
+        "X-Restli-Protocol-Version": "2.0.0",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "author": LINKEDIN_PERSON_URN,
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {
+                    "text": f"{title}\n\n{summary}\n\nFull analysis: {report_url}"
+                },
+                "shareMediaCategory": "ARTICLE",
+                "media": [
+                    {
+                        "status": "READY",
+                        "originalUrl": report_url,
+                        "title": {"text": title},
+                        "description": {"text": summary},
+                    }
+                ],
+            }
+        },
+        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
+    }
+
+   try:
+        res = requests.post(api_url, headers=headers, json=payload, timeout=15)
+        res.raise_for_status()
+        print("LinkedIn: Successfully published update.")
+    except Exception as exc:
+        print(f"LinkedIn error: {exc}")
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Zoonova AI Automated Intelligence Publisher")
+  parser = argparse.ArgumentParser(description="Zoonova AI Automated Intelligence Publisher")
     parser.add_argument(
         "--session",
         choices=["auto", "pre_market", "midday", "post_close"],
@@ -413,7 +454,7 @@ def main():
         public_report_url = f"{BASE_SITE_URL}/reports/{slug}"
         notify_google_indexing_api(public_report_url)
         send_alert(f"Generated **{title}**.\nLocal artifact: `reports/{slug}.json`")
-
+        publish_to_linkedin(title, "Zoonova Daily Market Intelligence Report", public_report_url)
         print("Pipeline execution complete.\n")
 
     except Exception as exc:
