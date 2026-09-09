@@ -163,12 +163,11 @@ def generate_market_intelligence(session_key: str) -> str:
     "Zero generic commentary. Every metric, price level, and model evaluation must be explicit, concrete, and quantitative."
   )
 
-  user_prompt = (
+    user_prompt = (
     f"Generate the comprehensive Zoonova AI Market Intelligence Analysis: {config['title_label']} for {today_str}. "
     f"{config['focus_prompt']} "
     "Ground all data in current global equity prices, yields, sector indices, and institutional news flow."
   )
-
     response = client.models.generate_content(
         model="gemini-3.5-flash-lite",
         contents=user_prompt,
