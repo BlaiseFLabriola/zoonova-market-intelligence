@@ -243,7 +243,7 @@ def build_schema_and_dom(raw_markdown: str, session_key: str):
         and not line.startswith("-")
         and not line.startswith("*")
     ):
-      first_para = line[:240]
+      first_para = line[:350]
       break
 
   schema = {
